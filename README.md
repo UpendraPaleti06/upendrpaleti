@@ -17,6 +17,8 @@ The agent decides by itself what to search for and which postings to open. The c
 
 ### Run it
 
+You need Python 3.10 or newer, which includes pip. **New to Python on Windows?** Follow the step-by-step [Windows setup guide](docs/windows-setup.md).
+
 ```bash
 pip install -r requirements.txt
 export ANTHROPIC_API_KEY=your_key_here   # get one at https://platform.claude.com
