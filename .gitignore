@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+shortlist.md
+my_profile.txt
+.venv/

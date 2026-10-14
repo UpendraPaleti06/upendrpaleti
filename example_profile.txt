@@ -1,0 +1,6 @@
+Name: (your name)
+Target roles: Python developer, backend engineer
+Experience: 2 years building REST APIs with Python, Django and PostgreSQL
+Skills: Python, Django, Flask, SQL, Git, Docker, basic AWS
+Preferences: remote or hybrid, full-time
+Not interested in: unpaid internships, sales roles
