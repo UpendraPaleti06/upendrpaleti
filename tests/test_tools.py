@@ -64,9 +64,46 @@ ARBEITNOW = {
         },
     ]
 }
+MUSE = {
+    "page": 0,
+    "page_count": 1,
+    "results": [
+        {
+            "id": 555,
+            "name": "Senior Python Engineer",
+            "contents": "<p>Work on Python services.</p>",
+            "publication_date": "2026-10-10T00:00:00Z",
+            "locations": [{"name": "Flexible / Remote"}],
+            "categories": [{"name": "Software Engineering"}],
+            "levels": [{"name": "Senior Level", "short_name": "senior"}],
+            "refs": {"landing_page": "https://www.themuse.com/jobs/acme/senior-python-engineer"},
+            "company": {"id": 1, "name": "Muse Co"},
+        },
+        {
+            "id": 556,
+            "name": "Python Analyst",
+            "contents": "Python",
+            "locations": [{"name": "New York, NY"}],
+            "categories": [],
+            "levels": [],
+            "refs": {"landing_page": "https://www.themuse.com/jobs/x/python-analyst"},
+            "company": {"name": "NY Corp"},
+        },
+        {
+            "id": 557,
+            "name": "Designer",
+            "contents": "Figma",
+            "locations": [{"name": "Flexible / Remote"}],
+            "refs": {},
+            "company": {"name": "Design Co"},
+        },
+    ],
+}
 
 
 def fake_fetch(url):
+    if url.startswith(tools.MUSE_URL):
+        return MUSE
     if url.startswith(tools.REMOTIVE_URL):
         return REMOTIVE
     if url.endswith("page=1"):
@@ -86,7 +123,7 @@ class ToolTests(unittest.TestCase):
     def test_search_combines_sources_and_filters(self, _):
         result = json.loads(tools.search_jobs("python"))
         ids = [job["id"] for job in result["jobs"]]
-        self.assertEqual(ids, ["remotive:101", "arbeitnow:python-dev-berlin"])
+        self.assertEqual(ids, ["remotive:101", "arbeitnow:python-dev-berlin", "muse:555"])
         self.assertEqual(result["errors"], [])
         self.assertNotIn("description", result["jobs"][0])
         self.assertIn("Django & Postgres", result["jobs"][0]["snippet"])
@@ -94,7 +131,27 @@ class ToolTests(unittest.TestCase):
     @mock.patch.object(tools, "_fetch_json", side_effect=fake_fetch)
     def test_search_can_include_onsite(self, _):
         result = json.loads(tools.search_jobs("python", remote_only=False))
-        self.assertIn("arbeitnow:onsite-python", [job["id"] for job in result["jobs"]])
+        ids = [job["id"] for job in result["jobs"]]
+        self.assertIn("arbeitnow:onsite-python", ids)
+        self.assertIn("muse:556", ids)
+
+    @mock.patch.object(tools, "_fetch_json", side_effect=fake_fetch)
+    def test_muse_fields_and_remote_filter(self, fetch):
+        result = json.loads(tools.search_jobs("python"))
+        muse_job = next(job for job in result["jobs"] if job["id"] == "muse:555")
+        self.assertEqual(muse_job["company"], "Muse Co")
+        self.assertTrue(muse_job["remote"])
+        self.assertEqual(muse_job["url"], "https://www.themuse.com/jobs/acme/senior-python-engineer")
+        muse_urls = [c.args[0] for c in fetch.call_args_list if c.args[0].startswith(tools.MUSE_URL)]
+        self.assertEqual(len(muse_urls), 1)  # stops after the last page
+        self.assertIn("location=Flexible+%2F+Remote", muse_urls[0])
+
+    @mock.patch.dict("os.environ", {"MUSE_API_KEY": "secret123"})
+    @mock.patch.object(tools, "_fetch_json", side_effect=fake_fetch)
+    def test_muse_api_key_is_sent(self, fetch):
+        tools.search_jobs("python")
+        muse_urls = [c.args[0] for c in fetch.call_args_list if c.args[0].startswith(tools.MUSE_URL)]
+        self.assertIn("api_key=secret123", muse_urls[0])
 
     def test_one_failing_source_is_reported(self):
         def flaky(url):
@@ -104,7 +161,7 @@ class ToolTests(unittest.TestCase):
 
         with mock.patch.object(tools, "_fetch_json", side_effect=flaky):
             result = json.loads(tools.search_jobs("python"))
-        self.assertEqual([job["id"] for job in result["jobs"]], ["remotive:101"])
+        self.assertEqual([job["id"] for job in result["jobs"]], ["remotive:101", "muse:555"])
         self.assertEqual(result["errors"], ["arbeitnow: network down"])
 
     @mock.patch.object(tools, "_fetch_json", side_effect=fake_fetch)

@@ -8,7 +8,7 @@ Connect with me on [LinkedIn](https://www.linkedin.com/in/upendra-paleti-a777821
 
 An AI agent built on the [Claude API](https://platform.claude.com/docs). You describe the job you want, and it:
 
-1. searches free job boards ([Remotive](https://remotive.com) and [Arbeitnow](https://www.arbeitnow.com)) using several different search phrasings,
+1. searches free job boards ([Remotive](https://remotive.com), [Arbeitnow](https://www.arbeitnow.com) and [The Muse](https://www.themuse.com)) using several different search phrasings,
 2. reads the most promising postings in full,
 3. ranks the best matches against your profile, giving a fit score, reasons and skill gaps for each,
 4. saves a shortlist to `shortlist.md`, with a short pitch for each job that you can adapt.
@@ -26,6 +26,8 @@ export ANTHROPIC_API_KEY=your_key_here   # get one at https://platform.claude.co
 cp example_profile.txt my_profile.txt     # then edit it with your skills and preferences
 python -m job_search_agent "Find remote Python backend jobs" --profile my_profile.txt
 ```
+
+The Muse works without a key. If you hit its rate limit, register for a free key at https://www.themuse.com/developers/api/v2 and set `MUSE_API_KEY` (on Windows: `set MUSE_API_KEY=your_key`).
 
 Options: `--top 5` (how many jobs to shortlist), `--output shortlist.md` (where to save the shortlist), and `--effort high` (`low` to `max`; higher effort is more thorough but uses more tokens).
 

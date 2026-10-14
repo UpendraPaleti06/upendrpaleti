@@ -3,10 +3,13 @@
 Job data comes from two free, key-less APIs:
 - Remotive (https://remotive.com/api/remote-jobs) - remote jobs, server-side search
 - Arbeitnow (https://www.arbeitnow.com/api/job-board-api) - mostly EU jobs, filtered here
+- The Muse (https://www.themuse.com/developers/api/v2) - US and global jobs, filtered here.
+  Works without a key; set MUSE_API_KEY for a higher rate limit.
 """
 
 import html
 import json
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -14,6 +17,7 @@ from pathlib import Path
 
 REMOTIVE_URL = "https://remotive.com/api/remote-jobs"
 ARBEITNOW_URL = "https://www.arbeitnow.com/api/job-board-api"
+MUSE_URL = "https://www.themuse.com/api/public/jobs"
 USER_AGENT = "job-search-agent/0.1 (+https://github.com/UpendraPaleti06/upendrpaleti)"
 MAX_DESCRIPTION_CHARS = 4000
 
@@ -91,8 +95,43 @@ def _search_arbeitnow(keywords: str, remote_only: bool, limit: int) -> list[dict
     return found
 
 
+def _search_muse(keywords: str, remote_only: bool, limit: int) -> list[dict]:
+    words = keywords.lower().split()
+    params = {"descending": "true"}
+    if remote_only:
+        params["location"] = "Flexible / Remote"
+    if os.environ.get("MUSE_API_KEY"):
+        params["api_key"] = os.environ["MUSE_API_KEY"]
+    found = []
+    for page in (0, 1, 2):  # no keyword search in the API, so scan the newest pages
+        query = urllib.parse.urlencode({**params, "page": page})
+        data = _fetch_json(f"{MUSE_URL}?{query}")
+        for job in data.get("results", []):
+            locations = [loc.get("name", "") for loc in job.get("locations") or []]
+            item = {
+                "id": f"muse:{job['id']}",
+                "title": job.get("name", ""),
+                "company": (job.get("company") or {}).get("name", ""),
+                "location": "; ".join(locations),
+                "remote": any("remote" in loc.lower() or "flexible" in loc.lower() for loc in locations),
+                "job_type": ", ".join(level.get("name", "") for level in job.get("levels") or []),
+                "salary": "",
+                "tags": [cat.get("name", "") for cat in job.get("categories") or []],
+                "posted": job.get("publication_date", ""),
+                "url": (job.get("refs") or {}).get("landing_page", ""),
+                "description": html_to_text(job.get("contents", "")),
+            }
+            if (item["remote"] or not remote_only) and _matches(item, words):
+                found.append(item)
+                if len(found) >= limit:
+                    return found
+        if page + 1 >= data.get("page_count", 0):
+            break
+    return found
+
+
 def search_jobs(keywords: str, remote_only: bool = True, limit: int = 10) -> str:
-    """Search public job boards for openings matching the keywords.
+    """Search public job boards (Remotive, Arbeitnow, The Muse) for openings matching the keywords.
 
     Returns a JSON list of job summaries (id, title, company, location, tags, url,
     and a short snippet). Use get_job_details with a job's id to read the full posting.
@@ -108,6 +147,7 @@ def search_jobs(keywords: str, remote_only: bool = True, limit: int = 10) -> str
     for source, search in (
         ("remotive", lambda: _search_remotive(keywords, limit)),
         ("arbeitnow", lambda: _search_arbeitnow(keywords, remote_only, limit)),
+        ("muse", lambda: _search_muse(keywords, remote_only, limit)),
     ):
         try:
             jobs = search()
@@ -126,7 +166,7 @@ def get_job_details(job_id: str) -> str:
     """Get the full description of a job returned by search_jobs.
 
     Args:
-        job_id: The job's id exactly as returned by search_jobs, e.g. "remotive:123456".
+        job_id: The job's id exactly as returned by search_jobs, e.g. "remotive:123456" or "muse:98765".
     """
     job = _job_cache.get(job_id)
     if job is None:
